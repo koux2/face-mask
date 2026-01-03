@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Mask Editor</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>☺️ Face Mask Editor</h1>
+            <p>写真をアップロードすると自動で顔を隠します。手動で微調整も可能です。</p>
+        </header>
+
+        <main>
+            <div class="upload-section">
+                <input type="file" id="imageInput" accept="image/*">
+                <label for="imageInput" class="btn primary">画像を選択</label>
+            </div>
+
+            <div class="editor-section" id="editorSection" style="display: none;">
+                <div class="canvas-container" id="canvasContainer">
+                    <img id="targetImage" src="" alt="Target">
+                    <!-- Emojis will be overlaid here -->
+                </div>
+
+                <div class="controls">
+                    <button id="addEmojiBtn" class="btn secondary">+ 絵文字を追加</button>
+                    <button id="downloadBtn" class="btn success">画像を保存</button>
+                    <button id="resetBtn" class="btn danger">リセット</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Hidden canvas for export -->
+    <canvas id="exportCanvas" style="display: none;"></canvas>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
