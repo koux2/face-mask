@@ -43,15 +43,30 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Upload and Detect
+    // Upload and Detect
     imageInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Capture original name (remove extension if possible, or just keep it)
+        // Revoke previous URL to avoid memory leaks
+        if (currentImageUrl) {
+            URL.revokeObjectURL(currentImageUrl);
+        }
+
+        // Capture original name
         const nameParts = file.name.split('.');
         const ext = nameParts.length > 1 ? nameParts.pop() : '';
         const baseName = nameParts.join('.');
         currentOriginalName = `${baseName}_masked.jpg`;
+
+        // Create local preview URL immediately
+        const objectUrl = URL.createObjectURL(file);
+        currentImageUrl = objectUrl;
+
+        targetImage.onload = () => {
+            // Image loaded, waiting for detection...
+        };
+        targetImage.src = objectUrl;
 
         const formData = new FormData();
         formData.append('image', file);
@@ -68,11 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            targetImage.onload = () => {
-                setupEditor(data.imageUrl, data.faces);
-            };
-            targetImage.src = data.imageUrl;
-            currentImageUrl = data.imageUrl;
+            // data.imageUrl is no longer returned, use currentImageUrl
+            setupEditor(currentImageUrl, data.faces);
 
         } catch (err) {
             console.error(err);

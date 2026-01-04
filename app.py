@@ -4,7 +4,8 @@ import uuid
 from main import detect_faces
 
 app = Flask(__name__)
-UPLOAD_FOLDER = 'static/uploads'
+# Vercel allows writing to /tmp
+UPLOAD_FOLDER = '/tmp'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
@@ -31,12 +32,19 @@ def detect():
     
     try:
         faces = detect_faces(filepath, None)
-        # Return image path relative to static
+        
+        # Clean up temporary file
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            
+        # Return only faces, frontend uses local blob
         return jsonify({
-            'imageUrl': f'/static/uploads/{filename}',
             'faces': faces
         })
     except Exception as e:
+        # Clean up on error too
+        if os.path.exists(filepath):
+            os.remove(filepath)
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
