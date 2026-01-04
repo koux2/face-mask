@@ -20,9 +20,9 @@ def detect_faces(input_path, model_path=None):
     image = cv2.imread(input_path)
     (h, w) = image.shape[:2]
 
-    # Preprocess image: resize to 300x300 for the model
-    blob = cv2.dnn.blobFromImage(cv2.resize(image, (300, 300)), 1.0,
-        (300, 300), (104.0, 177.0, 123.0))
+    # Preprocess image: resize to 600x600 for the model (Increased from 300x300 to detect small faces)
+    blob = cv2.dnn.blobFromImage(cv2.resize(image, (600, 600)), 1.0,
+        (600, 600), (104.0, 177.0, 123.0))
 
     net.setInput(blob)
     detections = net.forward()
@@ -87,7 +87,7 @@ def process_image(input_path, output_path, emoji_path, model_path):
         center_y = y + h // 2
         
         # Use simple max dimension for size to keep emoji square (1:1 aspect ratio)
-        size = int(max(w, h) * 1.5)
+        size = int(max(w, h) * 1.0)
         
         new_w = size
         new_h = size

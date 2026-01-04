@@ -9,11 +9,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportCanvas = document.getElementById('exportCanvas');
 
     let currentImageUrl = '';
+    let currentOriginalName = 'masked_photo.jpg';
 
     // Upload and Detect
     imageInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        // Capture original name (remove extension if possible, or just keep it)
+        const nameParts = file.name.split('.');
+        const ext = nameParts.length > 1 ? nameParts.pop() : '';
+        const baseName = nameParts.join('.');
+        currentOriginalName = `${baseName}_masked.jpg`;
 
         const formData = new FormData();
         formData.append('image', file);
@@ -57,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
         faces.forEach(face => {
             const cx = face.x + face.width / 2;
             const cy = face.y + face.height / 2;
-            const size = Math.max(face.width, face.height) * 1.5;
+            const size = Math.max(face.width, face.height) * 1.0;
 
             const cssSize = size * scaleX;
             const cssCx = cx * scaleX;
@@ -340,8 +347,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 const link = document.createElement('a');
-                link.download = 'masked_photo.png';
-                link.href = exportCanvas.toDataURL('image/png');
+                link.download = currentOriginalName;
+                link.href = exportCanvas.toDataURL('image/jpeg', 0.9);
                 link.click();
             };
         };
