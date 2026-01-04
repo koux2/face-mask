@@ -1,0 +1,8 @@
+venv
+static/uploads
+input
+__pycache__
+*.pyc
+.git
+*.tflite
+face_landmarker.task
