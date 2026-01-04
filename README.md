@@ -23,15 +23,20 @@ Face Mask Editorは、写真内の顔を自動的に検出し、絵文字で隠�
 
 ## 無料で公開 (Deployment)
 
-このアプリは **[Render](https://render.com/)** などのPaaSを使って誰でも閲覧可能なWebアプリとして無料で公開できます。
-リポジトリにはデプロイに必要な構成ファイル (`requirements.txt`, `gunicorn`) が含まれています。
+このアプリは **[Vercel](https://vercel.com/)** (推奨) や Render などのプラットフォームで無料で公開できます。
 
-### Renderへのデプロイ手順
-1. Renderで "Web Service" を新規作成。
-2. GitHubリポジトリを連携。
-3. Build Command: `pip install -r requirements.txt`
-4. Start Command: `gunicorn app:app`
-5. Plan: `Free` を選択して作成。
+### Vercelへのデプロイ (推奨: 爆速起動)
+**「起動が遅いのが気になる」という場合はこちらがおすすめです。**
+1. [Vercel](https://vercel.com/) にGitHubアカウントでログイン。
+2. "Add New..." > "Project" を選択し、このリポジトリ (`face-mask`) をImport。
+3. 設定はすべてデフォルトのままで "Deploy" をクリック。
+   - ※ `vercel.json` が含まれているため、Python環境として自動認識されます。
+
+### Renderへのデプロイ (代替案)
+1. Renderで "Web Service" を新規作成し、GitHubリポジトリを連携。
+2. Build Command: `pip install -r requirements.txt`
+3. Start Command: `gunicorn app:app`
+4. Plan: `Free` を選択。
 
 ## ローカルでの起動方法 (開発者向け)
 
