@@ -65,20 +65,40 @@ document.addEventListener('DOMContentLoaded', () => {
     async function processFile(file) {
         // Show local preview immediately
         const previewUrl = URL.createObjectURL(file);
-        currentImageUrl = previewUrl; // Store for potential later use or revoke
+        currentImageUrl = previewUrl;
 
         // Setup editor with preview (instant feedback)
-        setupEditor(previewUrl); // Call with just URL for initial display
+        setupEditor(previewUrl);
 
         // Resize image for backend processing
         try {
+            // Get original dimensions to calculate scale later
+            const originalImg = await loadImage(previewUrl);
+            const originalWidth = originalImg.width;
+
             const resizedBlob = await resizeImage(file, 1024, 1024);
-            await detectFaces(resizedBlob);
+
+            // Get resized dimensions
+            const resizedImg = await loadImage(URL.createObjectURL(resizedBlob));
+            const resizedWidth = resizedImg.width;
+
+            const scale = originalWidth / resizedWidth;
+
+            await detectFaces(resizedBlob, scale);
         } catch (error) {
             console.error('Processing error:', error);
             alert('画像の処理中にエラーが発生しました。');
-            resetUI(); // Assuming a resetUI function exists or needs to be created
+            resetUI();
         }
+    }
+
+    function loadImage(url) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = url;
+        });
     }
 
     function resizeImage(file, maxWidth, maxHeight) {
@@ -109,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function detectFaces(file) {
+    async function detectFaces(file, scale = 1.0) {
         const formData = new FormData();
         formData.append('image', file, 'image.png');
 
@@ -133,8 +153,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
+            // Scale faces back to original size
+            const scaledFaces = data.faces.map(face => ({
+                x: face.x * scale,
+                y: face.y * scale,
+                width: face.width * scale,
+                height: face.height * scale
+            }));
+
             // data.imageUrl is no longer returned, use currentImageUrl
-            setupEditor(currentImageUrl, data.faces);
+            setupEditor(currentImageUrl, scaledFaces);
 
         } catch (err) {
             console.error(err);
@@ -142,32 +170,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function setupEditor(url, faces) {
+    function setupEditor(url, faces = []) {
         editorSection.style.display = 'flex';
-        document.querySelectorAll('.emoji-overlay').forEach(el => el.remove());
 
-        const naturalWidth = targetImage.naturalWidth;
-        const naturalHeight = targetImage.naturalHeight;
-        const clientWidth = targetImage.clientWidth;
-        const clientHeight = targetImage.clientHeight;
+        // Update image source if changed
+        if (targetImage.src !== url) {
+            targetImage.src = url;
+        }
 
-        const scaleX = clientWidth / naturalWidth;
-        const scaleY = clientHeight / naturalHeight;
+        const render = () => {
+            document.querySelectorAll('.emoji-overlay').forEach(el => el.remove());
 
-        faces.forEach(face => {
-            const cx = face.x + face.width / 2;
-            const cy = face.y + face.height / 2;
-            const size = Math.max(face.width, face.height) * 1.0;
+            const naturalWidth = targetImage.naturalWidth;
+            const naturalHeight = targetImage.naturalHeight;
+            const clientWidth = targetImage.clientWidth;
+            const clientHeight = targetImage.clientHeight;
 
-            const cssSize = size * scaleX;
-            const cssCx = cx * scaleX;
-            const cssCy = cy * scaleY;
+            const scaleX = clientWidth / naturalWidth;
+            const scaleY = clientHeight / naturalHeight;
 
-            const cssLeft = cssCx - cssSize / 2;
-            const cssTop = cssCy - cssSize / 2;
+            faces.forEach(face => {
+                const cx = face.x + face.width / 2;
+                const cy = face.y + face.height / 2;
+                const size = Math.max(face.width, face.height) * 1.0;
 
-            createMask(cssLeft, cssTop, cssSize, 'emoji'); // Default to emoji on auto-detect
-        });
+                const cssSize = size * scaleX;
+                const cssCx = cx * scaleX;
+                const cssCy = cy * scaleY;
+
+                const cssLeft = cssCx - cssSize / 2;
+                const cssTop = cssCy - cssSize / 2;
+
+                createMask(cssLeft, cssTop, cssSize, 'emoji'); // Default to emoji on auto-detect
+            });
+        };
+
+        if (targetImage.complete && targetImage.naturalWidth !== 0) {
+            render();
+        } else {
+            targetImage.onload = render;
+        }
     }
 
     function createMask(left, top, size, type = creationType) {
