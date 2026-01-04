@@ -159,8 +159,71 @@ input[type="file"] {
     pointer-events: none;
 }
 
+.emoji-overlay .rotate-handle::after {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 5px;
+    width: 2px;
+    height: 15px;
+    background-color: #f5a623;
+    pointer-events: none;
+}
+
 .emoji-overlay.selected .rotate-handle {
     display: block;
+}
+
+/* Mask Types */
+.mask-box {
+    width: 100%;
+    height: 100%;
+}
+
+.mask-white {
+    background-color: white;
+}
+
+.mask-black {
+    background-color: black;
+}
+
+/* Type Selector */
+.mask-type-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.mask-type-separator {
+    width: 1px;
+    height: 20px;
+    background-color: #ccc;
+    margin: 0 10px;
+}
+
+.type-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    transition: transform 0.2s, border-color 0.2s;
+}
+
+.type-btn:hover {
+    transform: scale(1.1);
+}
+
+.type-btn.active {
+    border-color: #4a90e2 !important;
+    transform: scale(1.1);
+    box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
 }
 
 .emoji-overlay.selected .resize-handle {
@@ -185,6 +248,20 @@ input[type="file"] {
 
 .emoji-overlay.selected .delete-btn {
     display: block;
+}
+
+.controls-column {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.controls-row {
+    display: flex;
+    gap: 15px;
+    align-items: center;
 }
 
 .controls {

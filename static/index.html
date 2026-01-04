@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Face Mask Editor</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -25,10 +27,24 @@
                     <!-- Emojis will be overlaid here -->
                 </div>
 
-                <div class="controls">
-                    <button id="addEmojiBtn" class="btn secondary">+ 絵文字を追加</button>
-                    <button id="downloadBtn" class="btn success">画像を保存</button>
-                    <button id="resetBtn" class="btn danger">リセット</button>
+                <div class="controls-column">
+                    <div class="controls-row">
+                        <button id="addEmojiBtn" class="btn secondary">+ 追加</button>
+                        <div class="mask-type-group">
+                            <button class="type-btn active" data-type="emoji">☺️</button>
+                        </div>
+                        <div class="mask-type-separator"></div>
+                        <div class="mask-type-group">
+                            <button class="type-btn" data-type="white"
+                                style="background:white; border:1px solid #ccc;"></button>
+                            <button class="type-btn" data-type="black"
+                                style="background:black; border:1px solid #ccc;"></button>
+                        </div>
+                    </div>
+                    <div class="controls-row">
+                        <button id="resetBtn" class="btn danger">リセット</button>
+                        <button id="downloadBtn" class="btn success">画像を保存</button>
+                    </div>
                 </div>
             </div>
         </main>
@@ -39,4 +55,5 @@
 
     <script src="/static/script.js"></script>
 </body>
+
 </html>

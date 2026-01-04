@@ -10,6 +10,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentImageUrl = '';
     let currentOriginalName = 'masked_photo.jpg';
+    let creationType = 'emoji'; // Default for new masks
+
+    // Helper to update button UI
+    function updateButtonState(type) {
+        document.querySelectorAll('.type-btn').forEach(btn => {
+            if (btn.dataset.type === type) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    // Mask Type Selectors
+    document.querySelectorAll('.type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const type = btn.dataset.type;
+            const selected = document.querySelector('.emoji-overlay.selected');
+
+            if (selected) {
+                // Editing Mode: Only change the selected mask
+                updateMaskContent(selected, type);
+                // Also update UI to reflect the change we just made
+                updateButtonState(type);
+            } else {
+                // Creation Mode: Set the type for NEXT add
+                creationType = type;
+                updateButtonState(type);
+            }
+        });
+    });
 
     // Upload and Detect
     imageInput.addEventListener('change', async (e) => {
@@ -73,22 +104,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const cssLeft = cssCx - cssSize / 2;
             const cssTop = cssCy - cssSize / 2;
 
-            createEmoji(cssLeft, cssTop, cssSize);
+            createMask(cssLeft, cssTop, cssSize, 'emoji'); // Default to emoji on auto-detect
         });
     }
 
-    function createEmoji(left, top, size) {
+    function createMask(left, top, size, type = creationType) {
         const div = document.createElement('div');
         div.className = 'emoji-overlay';
         div.style.left = `${left}px`;
         div.style.top = `${top}px`;
         div.style.width = `${size}px`;
         div.style.height = `${size}px`;
-        div.dataset.rotation = '0'; // Store rotation
+        div.dataset.rotation = '0';
 
-        const img = document.createElement('img');
-        img.src = '/static/emoji.png';
-        div.appendChild(img);
+        updateMaskContent(div, type);
 
         const delBtn = document.createElement('div');
         delBtn.className = 'delete-btn';
@@ -117,24 +146,60 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasContainer.appendChild(div);
     }
 
-    document.addEventListener('click', () => {
-        document.querySelectorAll('.emoji-overlay.selected').forEach(el => el.classList.remove('selected'));
-    });
+    function updateMaskContent(div, type) {
+        div.dataset.type = type;
+
+        // Clear content that is NOT controls (handles/buttons)
+        Array.from(div.children).forEach(child => {
+            if (!child.classList.contains('delete-btn') &&
+                !child.classList.contains('resize-handle') &&
+                !child.classList.contains('rotate-handle')) {
+                child.remove();
+            }
+        });
+
+        if (type === 'emoji') {
+            const img = document.createElement('img');
+            img.src = '/static/emoji.png';
+            // Insert at beginning to be behind controls
+            div.insertBefore(img, div.firstChild);
+        } else {
+            const box = document.createElement('div');
+            box.className = `mask-box mask-${type}`;
+            div.insertBefore(box, div.firstChild);
+        }
+    }
 
     function selectEmoji(el) {
         document.querySelectorAll('.emoji-overlay.selected').forEach(e => e.classList.remove('selected'));
         el.classList.add('selected');
+
+        // Sync UI to selected item
+        const type = el.dataset.type || 'emoji';
+        updateButtonState(type);
     }
+
+    // Deselect handler
+    document.addEventListener('click', (e) => {
+        // If clicked on nothing interactive, deselect
+        if (!e.target.closest('.emoji-overlay') && !e.target.closest('.controls-column')) {
+            document.querySelectorAll('.emoji-overlay.selected').forEach(el => el.classList.remove('selected'));
+            // Revert UI to creation type
+            updateButtonState(creationType);
+        }
+    });
 
     let isDragging = false;
     let isResizing = false;
     let isRotating = false;
     let startX, startY;
     let startLeft, startTop;
-    let startWidth;
+    let startWidth, startHeight;
     let activeElement = null;
     let startRotation = 0;
     let centerCX, centerCY;
+
+
 
     function onMouseDown(e) {
         if (e.target.classList.contains('delete-btn')) return;
@@ -151,6 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.classList.contains('resize-handle')) {
             isResizing = true;
             startWidth = activeElement.offsetWidth;
+            startHeight = activeElement.offsetHeight; // Capture Height
         } else if (e.target.classList.contains('rotate-handle')) {
             isRotating = true;
             startRotation = parseFloat(activeElement.dataset.rotation || '0');
@@ -178,9 +244,25 @@ document.addEventListener('DOMContentLoaded', () => {
             activeElement.style.top = `${startTop + dy}px`;
         } else if (isResizing) {
             const dx = e.clientX - startX;
-            const newSize = Math.max(20, startWidth + dx);
-            activeElement.style.width = `${newSize}px`;
-            activeElement.style.height = `${newSize}px`;
+            const dy = e.clientY - startY;
+            const type = activeElement.dataset.type || 'emoji';
+
+            if (type === 'emoji') {
+                // Fixed Aspect Ratio
+                // Use the larger delta to determine size change
+                // or just use dx for simplicity if usually dragging corner
+                const d = Math.max(dx, dy);
+                const newSize = Math.max(20, startWidth + d);
+                activeElement.style.width = `${newSize}px`;
+                activeElement.style.height = `${newSize}px`;
+            } else {
+                // Free Resizing (White/Black)
+                const newWidth = Math.max(20, startWidth + dx);
+                const newHeight = Math.max(20, startHeight + dy);
+                activeElement.style.width = `${newWidth}px`;
+                activeElement.style.height = `${newHeight}px`;
+            }
+
         } else if (isRotating) {
             const dx = e.clientX - centerCX;
             const dy = e.clientY - centerCY;
@@ -206,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.removeEventListener('mouseup', onMouseUp);
     }
 
-    // Simple Touch Support (omitted full logic for brevity, reused structure)
+    // Simple Touch Support
     function onTouchStart(e) {
         if (e.target.classList.contains('delete-btn')) return;
         e.stopPropagation();
@@ -220,6 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target.classList.contains('resize-handle')) {
             isResizing = true;
             startWidth = activeElement.offsetWidth;
+            startHeight = activeElement.offsetHeight;
         } else if (e.target.classList.contains('rotate-handle')) {
             isRotating = true;
             startRotation = parseFloat(activeElement.dataset.rotation || '0');
@@ -248,9 +331,21 @@ document.addEventListener('DOMContentLoaded', () => {
             activeElement.style.top = `${startTop + dy}px`;
         } else if (isResizing) {
             const dx = touch.clientX - startX;
-            const newSize = Math.max(20, startWidth + dx);
-            activeElement.style.width = `${newSize}px`;
-            activeElement.style.height = `${newSize}px`;
+            const dy = touch.clientY - startY;
+            const type = activeElement.dataset.type || 'emoji';
+
+            if (type === 'emoji') {
+                const d = Math.max(dx, dy);
+                const newSize = Math.max(20, startWidth + d);
+                activeElement.style.width = `${newSize}px`;
+                activeElement.style.height = `${newSize}px`;
+            } else {
+                const newWidth = Math.max(20, startWidth + dx);
+                const newHeight = Math.max(20, startHeight + dy);
+                activeElement.style.width = `${newWidth}px`;
+                activeElement.style.height = `${newHeight}px`;
+            }
+
         } else if (isRotating) {
             const dx = touch.clientX - centerCX;
             const dy = touch.clientY - centerCY;
@@ -278,7 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const w = targetImage.clientWidth;
         const h = targetImage.clientHeight;
-        createEmoji(w / 2 - 50, h / 2 - 50, 100);
+        createMask(w / 2 - 50, h / 2 - 50, 100, creationType);
     });
 
     resetBtn.addEventListener('click', () => {
@@ -304,53 +399,50 @@ document.addEventListener('DOMContentLoaded', () => {
             const naturalWidth = img.naturalWidth;
             const scale = naturalWidth / clientWidth;
 
-            const emojis = document.querySelectorAll('.emoji-overlay');
-            const emojiAsset = new Image();
-            emojiAsset.src = '/static/emoji.png';
+            // For emoji loading sync
+            const loadEmoji = () => new Promise(resolve => {
+                const i = new Image();
+                i.onload = () => resolve(i);
+                i.src = '/static/emoji.png';
+            });
+            const emojiAsset = await loadEmoji();
 
-            emojiAsset.onload = () => {
-                emojis.forEach(el => {
-                    const rect = el.getBoundingClientRect();
-                    const containerRect = canvasContainer.getBoundingClientRect();
+            const masks = document.querySelectorAll('.emoji-overlay');
+            masks.forEach(el => {
+                const rotation = parseFloat(el.dataset.rotation || '0');
+                const type = el.dataset.type || 'emoji';
 
-                    // Rotation
-                    const rotation = parseFloat(el.dataset.rotation || '0');
+                const cssW = parseFloat(el.style.width);
+                const cssH = parseFloat(el.style.height);
+                const cssLeft = el.offsetLeft;
+                const cssTop = el.offsetTop;
 
-                    // To draw rotated, we need center point
-                    const cssLeft = el.offsetLeft;
-                    const cssTop = el.offsetTop;
-                    // Note: offsetLeft is relative to parent (canvasContainer), which is good.
-                    // But offsetLeft/Top are top-left of the bounding box of the element (before transform?).
-                    // If transform is used, visual position matches.
-                    // IMPORTANT: offsetLeft/Top DOES NOT change with transform rotate.
-                    // But we are manually calculating rotation.
+                const centerX = (cssLeft + cssW / 2) * scale;
+                const centerY = (cssTop + cssH / 2) * scale;
+                const w = cssW * scale;
+                const h = cssH * scale;
 
-                    // Wait, getBoundingClientRect gives the ROTATED box.
-                    // We should use the style properties we set for position + center for rotation.
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(rotation * Math.PI / 180);
 
-                    const cssW = parseFloat(el.style.width);
-                    const cssH = parseFloat(el.style.height);
-                    // Center in CSS space
-                    const centerX_css = cssLeft + cssW / 2;
-                    const centerY_css = cssTop + cssH / 2;
-
-                    const centerX = centerX_css * scale;
-                    const centerY = centerY_css * scale;
-                    const w = cssW * scale;
-                    const h = cssH * scale;
-
-                    ctx.save();
-                    ctx.translate(centerX, centerY);
-                    ctx.rotate(rotation * Math.PI / 180);
+                if (type === 'white') {
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(-w / 2, -h / 2, w, h);
+                } else if (type === 'black') {
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(-w / 2, -h / 2, w, h);
+                } else {
+                    // Emoji
                     ctx.drawImage(emojiAsset, -w / 2, -h / 2, w, h);
-                    ctx.restore();
-                });
+                }
+                ctx.restore();
+            });
 
-                const link = document.createElement('a');
-                link.download = currentOriginalName;
-                link.href = exportCanvas.toDataURL('image/jpeg', 0.9);
-                link.click();
-            };
+            const link = document.createElement('a');
+            link.download = currentOriginalName;
+            link.href = exportCanvas.toDataURL('image/jpeg', 0.9);
+            link.click();
         };
     });
 });
