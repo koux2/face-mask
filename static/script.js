@@ -76,6 +76,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: formData
             });
+
+            if (!res.ok) {
+                const text = await res.text();
+                console.error('Server Error:', res.status, text);
+                alert(`サーバーエラーが発生しました (Status: ${res.status})\n${text.substring(0, 100)}...`);
+                return;
+            }
+
             const data = await res.json();
 
             if (data.error) {
