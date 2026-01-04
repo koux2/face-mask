@@ -269,3 +269,62 @@ input[type="file"] {
     gap: 15px;
     margin-top: 20px;
 }
+
+/* Mobile Optimization */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+        align-items: flex-start;
+        /* Don't center vertically on long pages */
+    }
+
+    .container {
+        padding: 15px 10px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    p {
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+    }
+
+    .editor-section {
+        margin-top: 20px;
+        gap: 15px;
+        width: 100%;
+    }
+
+    .canvas-container {
+        width: 100%;
+        /* Let the image define height, but max-width constrained */
+        display: flex;
+        /* Center content */
+        justify-content: center;
+        border: none;
+        /* Remove border to save space on small screens? Or keep thin? */
+    }
+
+    #targetImage {
+        width: 100%;
+        height: auto;
+        /* Remove specific max-height on mobile to allow full width usage */
+        max-height: none;
+    }
+
+    .controls-column {
+        width: 100%;
+    }
+
+    .controls-row {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+}
