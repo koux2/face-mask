@@ -59,17 +59,59 @@ document.addEventListener('DOMContentLoaded', () => {
         const baseName = nameParts.join('.');
         currentOriginalName = `${baseName}_masked.jpg`;
 
-        // Create local preview URL immediately
-        const objectUrl = URL.createObjectURL(file);
-        currentImageUrl = objectUrl;
+        await processFile(file);
+    });
 
-        targetImage.onload = () => {
-            // Image loaded, waiting for detection...
-        };
-        targetImage.src = objectUrl;
+    async function processFile(file) {
+        // Show local preview immediately
+        const previewUrl = URL.createObjectURL(file);
+        currentImageUrl = previewUrl; // Store for potential later use or revoke
 
+        // Setup editor with preview (instant feedback)
+        setupEditor(previewUrl); // Call with just URL for initial display
+
+        // Resize image for backend processing
+        try {
+            const resizedBlob = await resizeImage(file, 1024, 1024);
+            await detectFaces(resizedBlob);
+        } catch (error) {
+            console.error('Processing error:', error);
+            alert('画像の処理中にエラーが発生しました。');
+            resetUI(); // Assuming a resetUI function exists or needs to be created
+        }
+    }
+
+    function resizeImage(file, maxWidth, maxHeight) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxWidth || height > maxHeight) {
+                    const ratio = Math.min(maxWidth / width, maxHeight / height);
+                    width = Math.floor(width * ratio);
+                    height = Math.floor(height * ratio);
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, file.type);
+            };
+            img.onerror = reject;
+        });
+    }
+
+    async function detectFaces(file) {
         const formData = new FormData();
-        formData.append('image', file);
+        formData.append('image', file, 'image.png');
 
         try {
             const res = await fetch('/detect', {
@@ -98,7 +140,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(err);
             alert('通信エラーが発生しました');
         }
-    });
+    }
 
     function setupEditor(url, faces) {
         editorSection.style.display = 'flex';
