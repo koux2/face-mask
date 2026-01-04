@@ -1,51 +1,51 @@
 # Face Mask Editor
 
-Face Mask Editor is a web-based application that automatically detects faces in images and masks them with an emoji. It also provides an interactive editor for manual adjustments (move, resize, rotate, add/delete emojis).
+Face Mask Editorは、写真内の顔を自動的に検出し、絵文字で隠すことができるWebアプリケーションです。
+ブラウザ上で動作し、自動検出されたマスクの位置やサイズ、角度を手動で微調整することも可能です。
 
-## Features
+## 機能
 
-- **Automatic Face Detection**: Uses **OpenCV DNN (SSD)** for robust detection, even in challenging conditions like collage photos or small faces.
-- **Interactive Editor**:
-    - **Move**: Drag and drop masks.
-    - **Resize**: Drag handles to resize.
-    - **Rotate**: Drag the rotation handle to tilt masks.
-    - **Add/Delete**: Manually add new masks or remove incorrect ones.
-- **Privacy Focused**:
-    - **Preserves Filenames**: `photo.png` -> `photo_masked.jpg`.
-    - **Efficient Export**: Saves as optimized JPEG to keep file sizes small.
-- **High Precision (v1.1)**: Enhanced internal resolution (600x600) to detect even small faces.
+- **高精度な自動検出**: **OpenCV DNN (SSD)** を採用し、コラージュ写真や小さな顔でも安定して検出します。
+- **インタラクティブな編集**:
+    - **移動**: ドラッグ＆ドロップで位置調整
+    - **リサイズ**: ハンドル操作でサイズ変更
+    - **回転**: ハンドル操作で角度調整
+    - **追加/削除**: 手動での追加や、誤検知の削除
+- **使いやすさとプライバシー**:
+    - **ファイル名の継承**: アップロードしたファイル名（例: `photo.png`）を引き継いで保存します（`photo_masked.jpg`）。
+    - **軽量な保存**: 画質を保ちつつファイルサイズを抑えるために、最適化されたJPEG形式で出力します。
+- **v1.1の強化点**: 内部解像度を600x600に向上させ、集合写真などの小さな顔の検出能力を強化しました。
 
-## Installation
+## インストール方法
 
-1. Clone the repository.
-2. Create virtual environment:
+1. リポジトリをクローンします。
+2. 仮想環境を作成して有効化します:
    ```bash
    python -m venv venv
    source venv/bin/activate
    ```
-3. Install dependencies:
+3. 依存ライブラリをインストールします:
    ```bash
    pip install -r requirements.txt
    ```
 
-## Usage
+## 使い方
 
-1. Start the server:
+1. サーバーを起動します:
    ```bash
    python app.py
    ```
-2. Open your browser at `http://localhost:5001`.
-3. Upload an image, edit masks, and download the result.
+2. ブラウザで [http://localhost:5001](http://localhost:5001) にアクセスします。
+3. 画像をアップロードし、編集を行い、「画像を保存」ボタンでダウンロードします。
 
-## Release Notes
+## リリースノート
 
 ### v1.1 (Current)
-- **Improved Detection**: Increased inference resolution to 600x600 to catch smaller faces.
-- **Polished UX**:
-    - Adjusted emoji size to exactly match face size (1.0x).
-    - Downloads now use the original filename (e.g., `_masked.jpg`).
-    - Output format changed to JPEG (quality 0.9) to significantly reduce file size.
+- **検出精度の向上**: 内部解析解像度を上げ、小さな顔の検出漏れを防ぐように改修。
+- **UXの改善**:
+    - 絵文字サイズを顔の大きさにぴったり合うように調整 (1.0倍)。
+    - ダウンロード時のファイル名が、元のファイル名を継承するように変更。
+    - 保存フォーマットをJPEG (画質0.9) に変更し、ファイルサイズを大幅に削減。
 
 ### v1.0
-- Initial release with OpenCV DNN backend.
-- Replaced unstable MediaPipe implementation.
+- **エンジンの刷新**: 不安定だったMediaPipe検出器を廃止し、業界標準の OpenCV DNN (SSD) に変更。これにより検出の安定性が飛躍的に向上しました。
