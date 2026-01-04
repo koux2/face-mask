@@ -1,5 +1,6 @@
 mediapipe
 Pillow
 numpy
-opencv-python
+opencv-python-headless
 Flask
+gunicorn
