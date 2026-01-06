@@ -5,16 +5,26 @@ import numpy as np
 import os
 from PIL import Image
 
+
+# Global model cache
+_net = None
+
 def detect_faces(input_path, model_path=None):
+    global _net
     # Load model files
     # Note: model_path argument is now less relevant as we need two files, 
     # but we can assume they are in the same dir as this script for simplicity,
     # or passed specifically. For now hardcode or lookup relative to file.
-    base_dir = os.path.dirname(__file__)
-    prototxt_path = os.path.join(base_dir, "deploy.prototxt.txt")
-    model_file_path = os.path.join(base_dir, "res10_300x300_ssd_iter_140000.caffemodel")
     
-    net = cv2.dnn.readNetFromCaffe(prototxt_path, model_file_path)
+    if _net is None:
+        base_dir = os.path.dirname(__file__)
+        prototxt_path = os.path.join(base_dir, "deploy.prototxt.txt")
+        model_file_path = os.path.join(base_dir, "res10_300x300_ssd_iter_140000.caffemodel")
+        
+        _net = cv2.dnn.readNetFromCaffe(prototxt_path, model_file_path)
+        print("Loaded Face Detection model")
+    
+    net = _net
 
     # Load image
     image = cv2.imread(input_path)

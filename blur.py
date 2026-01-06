@@ -3,17 +3,26 @@ import numpy as np
 from PIL import Image, ImageFilter
 import os
 
-def blur_background(input_path, output_path):
-    try:
-        # Load model
-        base_dir = os.path.dirname(__file__)
-        model_path = os.path.join(base_dir, "u2netp.onnx")
-        
-        if not os.path.exists(model_path):
-            print("Model not found")
-            return False
 
-        net = cv2.dnn.readNetFromONNX(model_path)
+# Global model cache
+_net = None
+
+def blur_background(input_path, output_path):
+    global _net
+    try:
+        if _net is None:
+            # Load model
+            base_dir = os.path.dirname(__file__)
+            model_path = os.path.join(base_dir, "u2netp.onnx")
+            
+            if not os.path.exists(model_path):
+                print("Model not found")
+                return False
+
+            _net = cv2.dnn.readNetFromONNX(model_path)
+            print("Loaded U-2-Net model")
+        
+        net = _net
         
         # Load and preprocess image
         # OpenCV loads as BGR
