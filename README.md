@@ -35,32 +35,29 @@ Face Mask Editorは、写真内の顔を自動的に検出し、絵文字で隠�
 
 | サービス | 速度 | 起動 | クレカ登録 | おすすめ |
 | :--- | :--- | :--- | :--- | :--- |
-| **Vercel** | △ 遅め | ◎ 速い | **不要** | **手軽さ重視** (現在の設定) |
-| **Cloud Run** | ◎ 爆速 | ◎ 速い | **必要** | **速度重視** (設定が少し大変) |
-| **Render** | ◯ 普通 | △ 遅い | **不要** | **バランス** (スリープあり) |
+| **Cloud Run** | **◎ 爆速** | **◎ 速い** | 必要 | **★ 一番おすすめ** (ずっと無料・高速) |
+| **Vercel** | △ 遅め | ◎ 速い | 不要 | 設定が面倒ならこちら |
+| **Render** | ◯ 普通 | △ 遅い | 不要 | 代替案 |
 
-- **Cloud Run**: 毎月200万回のリクエストまで無料枠があります（実質ずっと無料）。ただしアカウント作成にクレカ登録が必要です。
-- **Render**: 無料ですが、15分放置するとスリープし、次の起動に1分ほどかかります。
+- **Cloud Run**: 毎月200万回のリクエストまで無料枠があります（実質ずっと無料）。初期設定さえ済ませれば、これが**最強**です。
 
 ---
 
-### Google Cloud Runへのデプロイ (推奨: 高速・安定)
-**Vercelで速度に不満がある場合はこちらがおすすめです。**
-（初期設定が必要ですが、一度設定すれば高速に動作します）
+### Google Cloud Runへのデプロイ (★推奨)
+**最高の速度で使いたい場合はこちら。**
 
 1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクトを作成。
-2. `Cloud Run API` と `Artifact Registry API` を有効化。
-3. ローカルに [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) をインストール。
-4. 以下のコマンドでデプロイ:
+2. ローカルに [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) をインストール。
+3. 以下の簡単なスクリプトを実行してデプロイ:
+
    ```bash
-   # ログイン
+   # 初回のみログイン
    gcloud auth login
 
-   # デプロイ (初回はリージョン選択などが出ます、 "asia-northeast1" 推奨)
-   gcloud run deploy --source .
+   # デプロイ実行
+   sh deploy.sh
    ```
-   - サービス名: `face-mask` (エンター押下)
-   - 未認証の呼び出し: `y` (許可する)
+
 
 ### Vercelへのデプロイ
 1. [Vercel](https://vercel.com/) にGitHubアカウントでログイン。
