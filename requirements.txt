@@ -3,3 +3,4 @@ numpy<2
 Pillow
 opencv-python-headless==4.8.0.74
 gunicorn
+Werkzeug<3.0.0
