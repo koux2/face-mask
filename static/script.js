@@ -5,12 +5,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const targetImage = document.getElementById('targetImage');
     const addEmojiBtn = document.getElementById('addEmojiBtn');
     const downloadBtn = document.getElementById('downloadBtn');
-    const resetBtn = document.getElementById('resetBtn');
+    const copyBtn = document.getElementById('copyBtn');
     const exportCanvas = document.getElementById('exportCanvas');
 
     let currentImageUrl = '';
     let currentOriginalName = 'masked_photo.jpg';
-    let creationType = 'emoji'; // Default for new masks
+
+    let creationType = 'emoji_smile'; // Default for new masks
+
+    // Auto Blur State
+    let isAutoBlurred = false;
+    let originalBeforeAutoBlurFile = null;
 
     // Helper to update button UI
     function updateButtonState(type) {
@@ -21,6 +26,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.classList.remove('active');
             }
         });
+        creationType = type;
+    }
+
+    // Helper: Generate Emoji Data URL
+    const emojiCache = {};
+    function getEmojiDataUrl(type) {
+        if (emojiCache[type]) return emojiCache[type];
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 128; // Increased resolution
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+
+        const emojiMap = {
+            'emoji_smile': '☺️',
+            'emoji_blush': '😊',
+            'emoji_joy': '😂',
+            'emoji_fear': '😨'
+        };
+        const char = emojiMap[type] || '☺️';
+
+        ctx.font = '100px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(char, 64, 70); // Slightly adjusted y for centering
+
+        const dataUrl = canvas.toDataURL('image/png');
+        emojiCache[type] = dataUrl;
+        return dataUrl;
     }
 
     // Mask Type Selectors
@@ -44,9 +78,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Upload and Detect
     // Upload and Detect
+    let currentFile = null;
+
+    // Upload and Detect
     imageInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        currentFile = file;
 
         // Revoke previous URL to avoid memory leaks
         if (currentImageUrl) {
@@ -61,6 +100,316 @@ document.addEventListener('DOMContentLoaded', () => {
 
         await processFile(file);
     });
+
+    const blurBtn = document.getElementById('blurBtn');
+    blurBtn.addEventListener('click', async () => {
+        if (!currentFile) {
+            alert('画像をアップロードしてください');
+            return;
+        }
+
+        // Toggle Logic
+        if (isAutoBlurred) {
+            // REVERT
+            if (originalBeforeAutoBlurFile) {
+                currentFile = originalBeforeAutoBlurFile;
+                await processFile(currentFile);
+
+                // Reset State
+                isAutoBlurred = false;
+                originalBeforeAutoBlurFile = null;
+                blurBtn.innerHTML = '<span class="icon">💧</span> 自動ぼかし';
+                blurBtn.classList.remove('danger');
+                blurBtn.classList.add('secondary');
+            }
+            return;
+        }
+
+        // APPLY
+        // Show loading state
+        const originalText = blurBtn.innerHTML;
+        blurBtn.innerHTML = '<span class="icon">⏳</span> 処理中...';
+        blurBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('image', currentFile);
+
+        try {
+            const res = await fetch('/blur', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!res.ok) {
+                const text = await res.json();
+                throw new Error(text.error || 'Server Error');
+            }
+
+            const blob = await res.blob();
+
+            // Save original before switch
+            originalBeforeAutoBlurFile = currentFile;
+
+            currentFile = new File([blob], "blurred.jpg", { type: "image/jpeg" });
+            await processFile(currentFile);
+
+            // Update UI to Revert State
+            isAutoBlurred = true;
+            blurBtn.innerHTML = '<span class="icon">↩️</span> ぼかしを解除';
+            blurBtn.classList.remove('secondary'); // Optional: make it red/danger to indicate undo?
+            // blurBtn.classList.add('danger'); // Let's keep it consistent or use a different style
+
+        } catch (error) {
+            console.error('Blur error:', error);
+            alert('背景処理に失敗しました: ' + error.message);
+            blurBtn.innerHTML = originalText;
+        } finally {
+            blurBtn.disabled = false;
+        }
+    });
+
+    // --- Manual Blur Logic ---
+    const manualBlurBtn = document.getElementById('manualBlurBtn');
+    const manualBlurControls = document.getElementById('manualBlurControls');
+    const bgPrimaryControls = document.getElementById('bgPrimaryControls'); // New ref
+    const applyBlurBtn = document.getElementById('applyBlurBtn');
+    const cancelBlurBtn = document.getElementById('cancelBlurBtn');
+    const undoBlurBtn = document.getElementById('undoBlurBtn');
+    const manualBlurCanvas = document.getElementById('manualBlurCanvas');
+
+    let isManualBlurMode = false;
+    let isDrawingBlur = false;
+    let blurCtx = null;
+    let blurredPattern = null;
+    let blurHistory = []; // History Stack
+
+    manualBlurBtn.addEventListener('click', async () => {
+        if (!currentFile || !currentImageUrl) {
+            alert('画像をアップロードしてください');
+            return;
+        }
+
+        startManualBlur();
+    });
+
+    async function startManualBlur() {
+        isManualBlurMode = true;
+        targetImage.style.opacity = '1'; // Ensure visible
+
+        // 1. Prepare Canvas
+        const w = targetImage.clientWidth;
+        const h = targetImage.clientHeight;
+        manualBlurCanvas.width = w;
+        manualBlurCanvas.height = h;
+        manualBlurCanvas.style.pointerEvents = 'auto'; // Enable drawing
+        manualBlurCanvas.style.opacity = '1';
+
+        // Init Drawing Canvas for feedback
+        const drawingCanvas = document.getElementById('drawingCanvas');
+        drawingCanvas.width = w;
+        drawingCanvas.height = h;
+        drawingCanvas.style.opacity = '1';
+        drawingCanvas.style.pointerEvents = 'none'; // Passthrough to manualBlurCanvas
+        const drawCtx = drawingCanvas.getContext('2d');
+        drawCtx.clearRect(0, 0, w, h);
+        drawCtx.lineCap = 'round';
+        drawCtx.lineJoin = 'round';
+        drawCtx.lineWidth = 2;
+        drawCtx.strokeStyle = 'white';
+        drawCtx.setLineDash([5, 5]);
+
+        blurCtx = manualBlurCanvas.getContext('2d');
+        blurCtx.clearRect(0, 0, w, h);
+
+
+        // 2. Generate Blurred Pattern
+        // We create a blurred version of the current view to use as "ink"
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = w;
+        offCanvas.height = h;
+        const offCtx = offCanvas.getContext('2d');
+
+        const img = await loadImage(currentImageUrl);
+        // Calculate appropriate blur radius for preview to match server (approx)
+        // Server uses radius=5 on full resolution.
+        // Client should use radius scaled by size ratio.
+        const scale = img.width / w; // Natural / Client
+        // If scale is 10 (img 3000, client 300). Server 5px. Client should be 0.5px? 
+        // Actually, css blur(5px) on 300px image looks like blur(50px) on 3000px image.
+        // So we want css blur to be 5 / scale.
+        const radius = Math.max(1, 5 / scale);
+        offCtx.filter = `blur(${radius}px)`;
+        offCtx.drawImage(img, 0, 0, w, h);
+
+        // Save Initial State
+        saveHistory();
+
+        blurredPattern = blurCtx.createPattern(offCanvas, 'no-repeat');
+        blurCtx.fillStyle = blurredPattern;
+
+        // Show controls - Swap Rows
+        bgPrimaryControls.style.display = 'none';
+        manualBlurControls.style.display = 'flex'; // Ensure flex
+
+        // Hide overlay interactions
+        document.querySelectorAll('.emoji-overlay').forEach(el => el.style.pointerEvents = 'none');
+    }
+
+    // Drawing Events
+    function getPos(e) {
+        const rect = manualBlurCanvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
+    }
+
+    manualBlurCanvas.addEventListener('mousedown', startDraw);
+    manualBlurCanvas.addEventListener('touchstart', startDraw, { passive: false });
+
+    manualBlurCanvas.addEventListener('mousemove', draw);
+    manualBlurCanvas.addEventListener('touchmove', draw, { passive: false });
+
+    manualBlurCanvas.addEventListener('mouseup', endDraw);
+    manualBlurCanvas.addEventListener('touchend', endDraw);
+    manualBlurCanvas.addEventListener('mouseleave', endDraw);
+
+    let points = [];
+    const drawingCanvas = document.getElementById('drawingCanvas');
+
+    function startDraw(e) {
+        if (!isManualBlurMode) return;
+        e.preventDefault();
+        isDrawingBlur = true;
+        points = [];
+
+        const pos = getPos(e);
+        points.push(pos);
+
+        const drawCtx = drawingCanvas.getContext('2d');
+        drawCtx.beginPath();
+        drawCtx.moveTo(pos.x, pos.y);
+    }
+
+    function draw(e) {
+        if (!isManualBlurMode || !isDrawingBlur) return;
+        e.preventDefault();
+        const pos = getPos(e);
+        points.push(pos);
+
+        const drawCtx = drawingCanvas.getContext('2d');
+        drawCtx.lineTo(pos.x, pos.y);
+        drawCtx.stroke();
+    }
+
+    function endDraw(e) {
+        if (!isManualBlurMode || !isDrawingBlur) return;
+        isDrawingBlur = false;
+
+        // Finalize Lasso
+        const drawCtx = drawingCanvas.getContext('2d');
+        drawCtx.closePath();
+        drawCtx.stroke(); // Visual close
+
+        // Apply to manualBlurCanvas
+        if (points.length > 2) {
+            blurCtx.beginPath();
+            blurCtx.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                blurCtx.lineTo(points[i].x, points[i].y);
+            }
+            blurCtx.closePath();
+            blurCtx.fill();
+            saveHistory(); // Save state after modification
+        }
+
+        // Clear drawing canvas
+        drawCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+        drawCtx.beginPath(); // Reset path
+    }
+
+    function saveHistory() {
+        const h = manualBlurCanvas.height;
+        const w = manualBlurCanvas.width;
+        // Store as ImageData
+        const data = blurCtx.getImageData(0, 0, w, h);
+        blurHistory.push(data);
+    }
+
+    undoBlurBtn.addEventListener('click', () => {
+        if (blurHistory.length > 1) { // Keep at least initial or 1 step
+            blurHistory.pop(); // Remove current
+            const previous = blurHistory[blurHistory.length - 1]; // Peek previous
+            blurCtx.putImageData(previous, 0, 0);
+        } else if (blurHistory.length === 1) {
+            // Already at initial state
+        }
+    });
+
+
+    // Apply & Cancel
+    applyBlurBtn.addEventListener('click', async () => {
+        // Compose result in HIGH RESOLUTION
+        const img = await loadImage(currentImageUrl);
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = w;
+        finalCanvas.height = h;
+        const ctx = finalCanvas.getContext('2d');
+
+        // 1. Draw Original
+        ctx.drawImage(img, 0, 0);
+
+        // 2. Prepare Blurred Overlay (High Res)
+        const blurCanvas = document.createElement('canvas');
+        blurCanvas.width = w;
+        blurCanvas.height = h;
+        const bCtx = blurCanvas.getContext('2d');
+        bCtx.filter = 'blur(5px)'; // Match Server Strength
+        bCtx.drawImage(img, 0, 0, w, h);
+
+        // 3. Apply Mask Logic
+        // We want to keep Blur only where manualBlurCanvas is opaque
+        bCtx.globalCompositeOperation = 'destination-in';
+        // Draw manualBlurCanvas scaled up
+        bCtx.drawImage(manualBlurCanvas, 0, 0, w, h);
+
+        // 4. Composite
+        ctx.drawImage(blurCanvas, 0, 0);
+
+        // Convert to Blob
+        finalCanvas.toBlob(async (blob) => {
+            currentFile = new File([blob], "manual_blur.jpg", { type: "image/jpeg" });
+            await processFile(currentFile);
+            exitManualBlurMode();
+        }, 'image/jpeg', 0.95);
+    });
+
+    cancelBlurBtn.addEventListener('click', () => {
+        exitManualBlurMode();
+    });
+
+    function exitManualBlurMode() {
+        isManualBlurMode = false;
+        manualBlurCanvas.style.pointerEvents = 'none';
+        manualBlurCanvas.style.opacity = '0';
+
+        // Clear canvas
+        const ctx = manualBlurCanvas.getContext('2d');
+        ctx.clearRect(0, 0, manualBlurCanvas.width, manualBlurCanvas.height);
+
+        // Reset UI
+        // Reset UI - Swap Rows Back
+        bgPrimaryControls.style.display = 'flex';
+        manualBlurControls.style.display = 'none';
+
+        // Re-enable interactions
+        document.querySelectorAll('.emoji-overlay').forEach(el => el.style.pointerEvents = 'auto');
+    }
 
     async function processFile(file) {
         // Show local preview immediately
@@ -201,7 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cssLeft = cssCx - cssSize / 2;
                 const cssTop = cssCy - cssSize / 2;
 
-                createMask(cssLeft, cssTop, cssSize, 'emoji'); // Default to emoji on auto-detect
+                createMask(cssLeft, cssTop, cssSize, 'emoji_smile'); // Default to smiley
             });
         };
 
@@ -262,9 +611,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        if (type === 'emoji') {
+        if (type.startsWith('emoji')) {
             const img = document.createElement('img');
-            img.src = '/static/emoji.png';
+            img.src = getEmojiDataUrl(type);
             // Insert at beginning to be behind controls
             div.insertBefore(img, div.firstChild);
         } else {
@@ -480,21 +829,20 @@ document.addEventListener('DOMContentLoaded', () => {
         createMask(w / 2 - 50, h / 2 - 50, 100, creationType);
     });
 
-    resetBtn.addEventListener('click', () => {
-        imageInput.value = '';
-        editorSection.style.display = 'none';
-        currentImageUrl = '';
-    });
 
-    downloadBtn.addEventListener('click', async () => {
-        if (!currentImageUrl) return;
 
-        const ctx = exportCanvas.getContext('2d');
-        const img = new Image();
-        img.crossOrigin = "anonymous";
-        img.src = currentImageUrl;
+    // Helper: Compose final image on exportCanvas
+    async function composeImage() {
+        // alert('Compose Image Start: ' + (currentImageUrl ? 'Has URL' : 'No URL')); 
+        if (!currentImageUrl) {
+            alert('画像が読み込まれていません。');
+            return false;
+        }
 
-        img.onload = async () => {
+        try {
+            const ctx = exportCanvas.getContext('2d');
+            const img = await loadImage(currentImageUrl); // Use helper
+
             exportCanvas.width = img.naturalWidth;
             exportCanvas.height = img.naturalHeight;
             ctx.drawImage(img, 0, 0);
@@ -503,18 +851,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const naturalWidth = img.naturalWidth;
             const scale = naturalWidth / clientWidth;
 
-            // For emoji loading sync
-            const loadEmoji = () => new Promise(resolve => {
-                const i = new Image();
-                i.onload = () => resolve(i);
-                i.src = '/static/emoji.png';
-            });
-            const emojiAsset = await loadEmoji();
+            // Emoji Asset (Legacy) - Removed in favor of usage inside loop
+            // const emojiAsset = await loadImage('/static/emoji.png');
 
             const masks = document.querySelectorAll('.emoji-overlay');
-            masks.forEach(el => {
+            for (const el of masks) { // Use for...of to allow await inside if needed (though getEmoji is sync)
                 const rotation = parseFloat(el.dataset.rotation || '0');
-                const type = el.dataset.type || 'emoji';
+                const type = el.dataset.type || 'emoji_smile';
 
                 const cssW = parseFloat(el.style.width);
                 const cssH = parseFloat(el.style.height);
@@ -536,17 +879,82 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (type === 'black') {
                     ctx.fillStyle = '#000000';
                     ctx.fillRect(-w / 2, -h / 2, w, h);
+                } else if (type.startsWith('emoji')) {
+                    // Load dynamic emoji asset
+                    const emojiUrl = getEmojiDataUrl(type);
+                    const emojiImg = await loadImage(emojiUrl);
+                    ctx.drawImage(emojiImg, -w / 2, -h / 2, w, h);
                 } else {
-                    // Emoji
-                    ctx.drawImage(emojiAsset, -w / 2, -h / 2, w, h);
+                    // Fallback for old default 'emoji'
+                    const emojiUrl = getEmojiDataUrl('emoji_smile');
+                    const emojiImg = await loadImage(emojiUrl);
+                    ctx.drawImage(emojiImg, -w / 2, -h / 2, w, h);
                 }
                 ctx.restore();
-            });
+            }
+            return true;
+        } catch (error) {
+            console.error(error);
+            alert('画像の生成に失敗しました: ' + error.message);
+            return false;
+        }
+    }
 
-            const link = document.createElement('a');
-            link.download = currentOriginalName;
-            link.href = exportCanvas.toDataURL('image/jpeg', 0.9);
-            link.click();
-        };
+    downloadBtn.addEventListener('click', async () => {
+        try {
+            const success = await composeImage();
+            if (!success) return;
+
+            // Wait a small tick to ensure browser ready
+            setTimeout(() => {
+                const link = document.createElement('a');
+                link.download = currentOriginalName;
+                link.href = exportCanvas.toDataURL('image/jpeg', 0.95);
+                link.click();
+
+                // Feedback
+                const originalText = downloadBtn.innerHTML;
+                downloadBtn.innerHTML = '<span class="icon">✅</span> 保存しました';
+                setTimeout(() => {
+                    downloadBtn.innerHTML = originalText;
+                }, 2000);
+            }, 100);
+        } catch (e) {
+            alert('保存エラー: ' + e.message);
+        }
+    });
+
+    copyBtn.addEventListener('click', async () => {
+        try {
+            const success = await composeImage();
+            if (!success) return;
+
+            exportCanvas.toBlob(async (blob) => {
+                if (!blob) {
+                    alert('画像データの生成に失敗しました');
+                    return;
+                }
+                try {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({
+                            [blob.type]: blob
+                        })
+                    ]);
+
+                    // Feedback
+                    const originalText = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '<span class="icon">✅</span> コピーしました';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = originalText;
+                    }, 2000);
+                } catch (err) {
+                    console.error(err);
+                    alert('コピーに失敗しました: ' + err.message);
+                }
+            }, 'image/png');
+        } catch (e) {
+            console.error(e);
+            alert('コピーエラー: ' + e.message);
+        }
     });
 });

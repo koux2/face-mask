@@ -24,29 +24,68 @@
             <div class="editor-section" id="editorSection" style="display: none;">
                 <div class="canvas-container" id="canvasContainer">
                     <img id="targetImage" src="" alt="Target">
+                    <canvas id="manualBlurCanvas"
+                        style="position: absolute; top: 0; left: 0; pointer-events: none; opacity: 0; transition: opacity 0.2s; touch-action: none;"></canvas>
+                    <canvas id="drawingCanvas"
+                        style="position: absolute; top: 0; left: 0; pointer-events: none; z-index: 100;"></canvas>
                     <!-- Emojis will be overlaid here -->
                 </div>
 
                 <div class="controls-column">
-                    <div class="controls-row">
-                        <button id="addEmojiBtn" class="btn secondary">+ 追加</button>
-                        <div class="mask-type-group">
-                            <button class="type-btn active" data-type="emoji">☺️</button>
+                    <!-- Section 1: Face Hide -->
+                    <div class="control-section">
+                        <h3>1. 顔を隠す</h3>
+                        <div class="controls-row">
+                            <div class="mask-type-group">
+                                <button class="type-btn active" data-type="emoji_smile">☺️</button>
+                                <button class="type-btn" data-type="emoji_blush">😊</button>
+                                <button class="type-btn" data-type="emoji_joy">😂</button>
+                                <button class="type-btn" data-type="emoji_fear">😨</button>
+                            </div>
+                            <div class="mask-type-separator"></div>
+                            <div class="mask-type-group">
+                                <button class="type-btn" data-type="white"
+                                    style="background:white; border:1px solid #ccc;"></button>
+                                <button class="type-btn" data-type="black"
+                                    style="background:black; border:1px solid #ccc;"></button>
+                            </div>
                         </div>
-                        <div class="mask-type-separator"></div>
-                        <div class="mask-type-group">
-                            <button class="type-btn" data-type="white"
-                                style="background:white; border:1px solid #ccc;"></button>
-                            <button class="type-btn" data-type="black"
-                                style="background:black; border:1px solid #ccc;"></button>
+                        <button id="addEmojiBtn" class="btn primary" style="width: 100%; margin-top: 10px;">
+                            <span class="icon">☺️</span> 追加する
+                        </button>
+                    </div>
+
+                    <!-- Section 2: Background -->
+                    <div class="control-section" id="background-section">
+                        <h3>2. 背景を編集</h3>
+                        <div id="bgPrimaryControls" class="controls-row" style="gap: 5px;">
+                            <button id="blurBtn" class="btn secondary"
+                                style="flex:1; background-color: #6c5ce7; color: white;">
+                                <span class="icon">💧</span> 自動ぼかし
+                            </button>
+                            <button id="manualBlurBtn" class="btn secondary"
+                                style="flex:1; background-color: #a29bfe; color: white;">
+                                <span class="icon">⬜️</span> 囲ってぼかす
+                            </button>
+                        </div>
+                        <div id="manualBlurControls" style="display: none; margin-top: 10px; gap: 5px;">
+                            <button id="undoBlurBtn" class="btn secondary" style="flex: 1;">↩️ 元に戻す</button>
+                            <button id="applyBlurBtn" class="btn success" style="flex: 1;">確定</button>
+                            <button id="cancelBlurBtn" class="btn danger" style="flex: 1;">キャンセル</button>
                         </div>
                     </div>
-                    <div class="controls-row">
-                        <button id="resetBtn" class="btn danger">リセット</button>
-                        <button id="downloadBtn" class="btn success">画像を保存</button>
+
+                    <div class="control-section">
+                        <h3>3. 保存</h3>
+                        <div class="controls-row" style="gap: 5px;">
+                            <button id="downloadBtn" class="btn success" style="flex: 1;">
+                                <span class="icon">⬇️</span> 画像を保存
+                            </button>
+                            <button id="copyBtn" class="btn primary" style="flex: 1; background-color: #0984e3;">
+                                <span class="icon">📋</span> コピー
+                            </button>
+                        </div>
                     </div>
-                </div>
-            </div>
         </main>
     </div>
 

@@ -33,7 +33,7 @@ def detect_faces(input_path, model_path=None):
         confidence = detections[0, 0, i, 2]
 
         # Filter out weak detections (0.5 is standard, but for collage maybe 0.3)
-        if confidence > 0.3:
+        if confidence > 0.5:
             # Compute bbox
             box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
             (startX, startY, endX, endY) = box.astype("int")

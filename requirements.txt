@@ -1,5 +1,5 @@
-Pillow
+Flask==2.2.3
 numpy
+Pillow
 opencv-python-headless
-Flask
 gunicorn
