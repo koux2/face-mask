@@ -31,9 +31,9 @@ Face Mask Editorは、写真内の顔を自動的に検出し、絵文字で隠�
 
 ## 無料で公開 (Deployment)
 
-このアプリは **[Vercel](https://vercel.com/)** (推奨) などのプラットフォームで無料で公開できます。
+このアプリは **[Vercel](https://vercel.com/)** などのプラットフォームで無料で公開できます。
 
-### Vercelへのデプロイ (推奨: 爆速起動)
+### Vercelへのデプロイ
 1. [Vercel](https://vercel.com/) にGitHubアカウントでログイン。
 2. "Add New..." > "Project" を選択し、このリポジトリ (`face-mask`) をImport。
 3. 設定はすべてデフォルトのままで "Deploy" をクリック。
