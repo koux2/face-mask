@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory, send_file
 import os
+# Fix for Vercel/AWS Lambda: Ensure libraries writing to HOME use /tmp
+os.environ['HOME'] = '/tmp'
 import uuid
 from main import detect_faces
 from blur import blur_background

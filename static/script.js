@@ -139,13 +139,24 @@ document.addEventListener('DOMContentLoaded', () => {
         // APPLY
         // Show loading state
         const originalText = blurBtn.innerHTML;
-        blurBtn.innerHTML = '<span class="icon">⏳</span> 処理中...';
+        blurBtn.innerHTML = '<div class="spinner"></div> 処理中...';
         blurBtn.disabled = true;
 
-        const formData = new FormData();
-        formData.append('image', currentFile);
-
         try {
+            // Check file size for Vercel/Serverless limits (approx 4.5MB)
+            let fileToSend = currentFile;
+            // Threshold: 3.5MB to be safe. If larger, resize/compress.
+            if (fileToSend.size > 3.5 * 1024 * 1024) {
+                // Compress to JPEG with 2500px max dim (high enough for most) and 0.9 quality
+                console.log("File too large (" + (fileToSend.size / 1024 / 1024).toFixed(2) + "MB). Compressing...");
+                const blob = await resizeImage(fileToSend, 2500, 2500, 'image/jpeg', 0.9);
+                fileToSend = new File([blob], "compressed.jpg", { type: "image/jpeg" });
+                console.log("Compressed to " + (fileToSend.size / 1024 / 1024).toFixed(2) + "MB");
+            }
+
+            const formData = new FormData();
+            formData.append('image', fileToSend);
+
             const res = await fetch('/blur', {
                 method: 'POST',
                 body: formData
@@ -538,7 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function resizeImage(file, maxWidth, maxHeight) {
+    function resizeImage(file, maxWidth, maxHeight, outputType = null, quality = 0.95) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.src = URL.createObjectURL(file);
@@ -556,11 +567,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
+
+                // Fill white background for JPEGs (transparency becomes black otherwise)
+                const type = outputType || file.type;
+                if (type === 'image/jpeg') {
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, width, height);
+                }
+
                 ctx.drawImage(img, 0, 0, width, height);
 
                 canvas.toBlob((blob) => {
                     resolve(blob);
-                }, file.type);
+                }, type, quality);
             };
             img.onerror = reject;
         });
