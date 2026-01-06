@@ -33,6 +33,24 @@ Face Mask Editorは、写真内の顔を自動的に検出し、絵文字で隠�
 
 このアプリは **[Vercel](https://vercel.com/)** などのプラットフォームで無料で公開できます。
 
+### Google Cloud Runへのデプロイ (推奨: 高速・安定)
+**Vercelで速度に不満がある場合はこちらがおすすめです。**
+（初期設定が必要ですが、一度設定すれば高速に動作します）
+
+1. [Google Cloud Console](https://console.cloud.google.com/) でプロジェクトを作成。
+2. `Cloud Run API` と `Artifact Registry API` を有効化。
+3. ローカルに [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) をインストール。
+4. 以下のコマンドでデプロイ:
+   ```bash
+   # ログイン
+   gcloud auth login
+
+   # デプロイ (初回はリージョン選択などが出ます、 "asia-northeast1" 推奨)
+   gcloud run deploy --source .
+   ```
+   - サービス名: `face-mask` (エンター押下)
+   - 未認証の呼び出し: `y` (許可する)
+
 ### Vercelへのデプロイ
 1. [Vercel](https://vercel.com/) にGitHubアカウントでログイン。
 2. "Add New..." > "Project" を選択し、このリポジトリ (`face-mask`) をImport。
