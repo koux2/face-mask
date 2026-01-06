@@ -14,9 +14,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 def index():
     return send_from_directory('static', 'index.html')
 
-@app.route('/assets/<path:filename>')
-def serve_assets(filename):
-    return send_from_directory('assets', filename)
+@app.route('/temp/<path:filename>')
+def serve_temp(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 @app.route('/detect', methods=['POST'])
 def detect():
@@ -67,10 +67,20 @@ def blur():
     file.save(filepath)
     
     try:
-        success = blur_background(filepath, output_filepath)
+        # blur_background returns (success, mask_filename)
+        result = blur_background(filepath, output_filepath)
         
+        if isinstance(result, tuple):
+            success, mask_filename = result
+        else:
+            success = result
+            mask_filename = None
+
         if success:
-            return send_file(output_filepath, mimetype='image/jpeg')
+            return jsonify({
+                'url': f'/temp/{output_filename}',
+                'mask_url': f'/temp/{mask_filename}' if mask_filename else None
+            })
         else:
             return jsonify({'error': 'Failed to process image'}), 500
             
@@ -80,12 +90,6 @@ def blur():
         # Clean up input file
         if os.path.exists(filepath):
             os.remove(filepath)
-        # Output file is streamed by send_file? 
-        # Actually send_file might keep it open. 
-        # Flask's send_file usually handles file closing but deletion is tricky.
-        # For simplicity in this dev environment, we might leave it or use after_request.
-        # Let's rely on /tmp being cleared eventually or add cleanup logic if critical.
-        pass
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

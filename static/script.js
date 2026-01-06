@@ -57,6 +57,17 @@ document.addEventListener('DOMContentLoaded', () => {
         return dataUrl;
     }
 
+    // Helper: Cached Image Loader for Emojis
+    const emojiImageCache = {};
+    async function loadEmojiImage(type) {
+        if (emojiImageCache[type]) return emojiImageCache[type];
+
+        const url = getEmojiDataUrl(type);
+        const img = await loadImage(url);
+        emojiImageCache[type] = img;
+        return img;
+    }
+
     // Mask Type Selectors
     document.querySelectorAll('.type-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -140,18 +151,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: formData
             });
 
+            const data = await res.json();
+
             if (!res.ok) {
-                const text = await res.json();
-                throw new Error(text.error || 'Server Error');
+                throw new Error(data.error || 'Server Error');
             }
 
-            const blob = await res.blob();
+            // Load the blurred image blob from the temp URL
+            const imgRes = await fetch(data.url);
+            const blob = await imgRes.blob();
 
             // Save original before switch
             originalBeforeAutoBlurFile = currentFile;
 
             currentFile = new File([blob], "blurred.jpg", { type: "image/jpeg" });
             await processFile(currentFile);
+
+            // Show Visualization Overlay if present
+            if (data.mask_url) {
+                currentAutoMaskUrl = data.mask_url; // Save for manual edit
+                const overlay = document.createElement('img');
+                overlay.src = data.mask_url;
+                overlay.style.position = 'absolute';
+                overlay.style.top = '0';
+                overlay.style.left = '0';
+                overlay.style.width = '100%';
+                overlay.style.height = '100%';
+                overlay.style.pointerEvents = 'none'; // Click through
+                overlay.style.zIndex = '50'; // On top of image but below emojis (which are z-index 10?) Wait, emojis are on top of canvasContainer? 
+                // Emojis are appended to canvasContainer.
+                // If I append overlay to targetImage's parent or canvasContainer, order matters.
+                // targetImage is in canvasContainer. Emojis are in canvasContainer.
+                // Let's z-index it high to be sure we see it.
+                // Actually emoji-overlay has z-index 10.
+                // We want to see what WAS blurred (background).
+
+                overlay.style.transition = 'opacity 0.5s ease-out';
+
+                canvasContainer.appendChild(overlay);
+
+                // Remove after 2.5 seconds
+                setTimeout(() => {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => overlay.remove(), 500);
+                }, 2500);
+            }
 
             // Update UI to Revert State
             isAutoBlurred = true;
@@ -220,6 +264,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         blurCtx = manualBlurCanvas.getContext('2d');
         blurCtx.clearRect(0, 0, w, h);
+
+        // 1.5 Prepare Visualization Canvas (Red Overlay)
+        let vizCanvas = document.getElementById('vizCanvas');
+        if (!vizCanvas) {
+            vizCanvas = document.createElement('canvas');
+            vizCanvas.id = 'vizCanvas';
+            vizCanvas.style.position = 'absolute';
+            vizCanvas.style.top = '0';
+            vizCanvas.style.left = '0';
+            vizCanvas.style.width = '100%';
+            vizCanvas.style.height = '100%';
+            vizCanvas.style.pointerEvents = 'none';
+            vizCanvas.style.zIndex = '40'; // Below labels, above image
+            canvasContainer.appendChild(vizCanvas);
+        }
+        vizCanvas.width = w;
+        vizCanvas.height = h;
+        const vizCtx = vizCanvas.getContext('2d');
+        vizCtx.clearRect(0, 0, w, h);
+
+        // Load existing Auto Mask if available
+        if (currentAutoMaskUrl) {
+            const autoMaskImg = await loadImage(currentAutoMaskUrl);
+            vizCtx.drawImage(autoMaskImg, 0, 0, w, h);
+        }
 
 
         // 2. Generate Blurred Pattern
@@ -315,6 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Apply to manualBlurCanvas
         if (points.length > 2) {
+            // 1. Update Logic Mask
             blurCtx.beginPath();
             blurCtx.moveTo(points[0].x, points[0].y);
             for (let i = 1; i < points.length; i++) {
@@ -322,7 +392,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             blurCtx.closePath();
             blurCtx.fill();
-            saveHistory(); // Save state after modification
+            saveHistory();
+
+            // 2. Update Visualization (Red Overlay)
+            const vizCanvas = document.getElementById('vizCanvas');
+            if (vizCanvas) {
+                const vizCtx = vizCanvas.getContext('2d');
+                vizCtx.fillStyle = 'rgba(255, 0, 0, 0.3)';
+                vizCtx.beginPath();
+                vizCtx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    vizCtx.lineTo(points[i].x, points[i].y);
+                }
+                vizCtx.closePath();
+                vizCtx.fill();
+            }
         }
 
         // Clear drawing canvas
@@ -401,6 +485,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear canvas
         const ctx = manualBlurCanvas.getContext('2d');
         ctx.clearRect(0, 0, manualBlurCanvas.width, manualBlurCanvas.height);
+
+        // Remove Viz Canvas
+        const vizCanvas = document.getElementById('vizCanvas');
+        if (vizCanvas) vizCanvas.remove();
 
         // Reset UI
         // Reset UI - Swap Rows Back
@@ -833,7 +921,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helper: Compose final image on exportCanvas
     async function composeImage() {
-        // alert('Compose Image Start: ' + (currentImageUrl ? 'Has URL' : 'No URL')); 
         if (!currentImageUrl) {
             alert('画像が読み込まれていません。');
             return false;
@@ -850,9 +937,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const clientWidth = targetImage.clientWidth;
             const naturalWidth = img.naturalWidth;
             const scale = naturalWidth / clientWidth;
-
-            // Emoji Asset (Legacy) - Removed in favor of usage inside loop
-            // const emojiAsset = await loadImage('/static/emoji.png');
 
             const masks = document.querySelectorAll('.emoji-overlay');
             for (const el of masks) { // Use for...of to allow await inside if needed (though getEmoji is sync)
@@ -880,14 +964,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.fillStyle = '#000000';
                     ctx.fillRect(-w / 2, -h / 2, w, h);
                 } else if (type.startsWith('emoji')) {
-                    // Load dynamic emoji asset
-                    const emojiUrl = getEmojiDataUrl(type);
-                    const emojiImg = await loadImage(emojiUrl);
+                    // Load dynamic emoji asset (Cached)
+                    const emojiImg = await loadEmojiImage(type);
                     ctx.drawImage(emojiImg, -w / 2, -h / 2, w, h);
                 } else {
                     // Fallback for old default 'emoji'
-                    const emojiUrl = getEmojiDataUrl('emoji_smile');
-                    const emojiImg = await loadImage(emojiUrl);
+                    const emojiImg = await loadEmojiImage('emoji_smile');
                     ctx.drawImage(emojiImg, -w / 2, -h / 2, w, h);
                 }
                 ctx.restore();

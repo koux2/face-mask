@@ -55,12 +55,32 @@ def blur_background(input_path, output_path):
         # Min-max normalization (sigmoid approximation if raw logits, but u2net usually outputs logits so we need sigmoid? 
         # Actually u2net output is usually logits. simple normalization 0-1 works for mask)
         # Let's use simple normalization to 0-255
+        # Min-max normalization (Restored to fix "Full Blur" regression)
+        # We need to stretch the probability map to 0-1 range to ensure the subject (highest prob)
+        # is fully white (protected) and background (lowest prob) is black (blurred).
         ma = np.max(pred)
         mi = np.min(pred)
-        pred = (pred - mi) / (ma - mi)
-        
+        if ma > mi:
+            pred = (pred - mi) / (ma - mi)
+        else:
+            # Flat output (unlikely but safe)
+            pred = np.zeros_like(pred)
+
+        # --- Tuning for User Preference (Expand Subject Area) ---
+        # 1. Gamma Correction: Boost partial confidence values.
+        # Power < 1.0 pushes values towards 1.0 (White/Subject).
+        # e.g., 0.3^0.4 = 0.61.  0.1^0.4 = 0.39.
+        pred = pred ** 0.4
+
         # Resize mask back to original size
         mask = cv2.resize(pred, (w, h))
+
+        # 2. Morphological Dilation: Physically expand the white region.
+        # This pushes the subject boundary outwards into the background.
+        # Dynamic kernel size based on image resolution (approx 1.5% of min dimension)
+        k_size = max(5, int(min(w, h) * 0.015)) 
+        kernel = np.ones((k_size, k_size), np.uint8)
+        mask = cv2.dilate(mask, kernel, iterations=1)
         
         # Soft mask for blending
         # Mask needs to be 3 channels for multiplication or handled via PIL
@@ -87,7 +107,30 @@ def blur_background(input_path, output_path):
         final_image = Image.composite(original_pil, blurred_img, mask_img)
         
         final_image.save(output_path, quality=95)
-        return True
+
+        # Generate Visualization Mask (Red semi-transparent where background is)
+        # Background is where mask_img is BLACK (0).
+        # We want Red Overlay on Background.
+        # Create a solid red image
+        red_overlay = Image.new("RGB", original_pil.size, (255, 0, 0))
+        # Create alpha channel for overlay: 
+        # We want it visible where background (mask=0). 
+        # Invert mask: 255 - mask
+        mask_np = np.array(mask_img)
+        inv_mask_np = 255 - mask_np
+        
+        # Make the red weak (e.g. 50% opacity -> 128) where background, 0 where subject
+        alpha_np = (inv_mask_np * 0.3).astype(np.uint8) # 30% opacity
+        alpha_img = Image.fromarray(alpha_np, mode='L')
+        
+        red_overlay.putalpha(alpha_img)
+        
+        # Save visualization
+        vis_filename = os.path.basename(output_path).replace("_blurred.jpg", "_mask.png")
+        vis_path = os.path.join(os.path.dirname(output_path), vis_filename)
+        red_overlay.save(vis_path, format="PNG")
+        
+        return True, vis_filename
 
     except Exception as e:
         print(f"Error in blur_background: {e}")
