@@ -30,8 +30,16 @@ def blur_background(input_path, output_path):
         if image is None:
             return False
             
+        # Limit resolution for performance (Max 1600px long side)
+        MAX_SIZE = 1600
         h, w = image.shape[:2]
-        
+        if max(h, w) > MAX_SIZE:
+            scale = MAX_SIZE / max(h, w)
+            new_w = int(w * scale)
+            new_h = int(h * scale)
+            image = cv2.resize(image, (new_w, new_h), interpolation=cv2.INTER_AREA)
+            h, w = new_h, new_w  # Update dimensions
+
         # Preprocessing expected by U-2-Net
         # Resize to 320x320
         input_size = 320
@@ -54,90 +62,81 @@ def blur_background(input_path, output_path):
         
         # Inference
         net.setInput(img_normalized)
-        # Output is likely the first output blob. U-2-Net has multiple, first is result.
         output = net.forward()
         
         # Postprocess
-        # Output shape is (1, 1, 320, 320) - probability map
         pred = output[0, 0, :, :]
         
-        # Min-max normalization (sigmoid approximation if raw logits, but u2net usually outputs logits so we need sigmoid? 
-        # Actually u2net output is usually logits. simple normalization 0-1 works for mask)
-        # Let's use simple normalization to 0-255
-        # Min-max normalization (Restored to fix "Full Blur" regression)
-        # We need to stretch the probability map to 0-1 range to ensure the subject (highest prob)
-        # is fully white (protected) and background (lowest prob) is black (blurred).
+        # Min-max normalization
         ma = np.max(pred)
         mi = np.min(pred)
         if ma > mi:
             pred = (pred - mi) / (ma - mi)
         else:
-            # Flat output (unlikely but safe)
             pred = np.zeros_like(pred)
 
-        # --- Tuning for User Preference (Expand Subject Area) ---
-        # 1. Gamma Correction: Boost partial confidence values.
-        # Power < 1.0 pushes values towards 1.0 (White/Subject).
-        # e.g., 0.3^0.4 = 0.61.  0.1^0.4 = 0.39.
+        # Tuning: Gamma Correction
         pred = pred ** 0.4
 
         # Resize mask back to original size
         mask = cv2.resize(pred, (w, h))
 
-        # 2. Morphological Dilation: Physically expand the white region.
-        # This pushes the subject boundary outwards into the background.
-        # Dynamic kernel size based on image resolution (approx 1.5% of min dimension)
+        # Tuning: Morphological Dilation
         k_size = max(5, int(min(w, h) * 0.015)) 
         kernel = np.ones((k_size, k_size), np.uint8)
         mask = cv2.dilate(mask, kernel, iterations=1)
         
-        # Soft mask for blending
-        # Mask needs to be 3 channels for multiplication or handled via PIL
+        # --- OpenCV Processing for blurring (Faster than PIL) ---
         
-        # --- PIL Processing for blurring ---
-        # It's easier to do the blur and composite in PIL as we did before, 
-        # utilizing the generated mask.
+        # Create blurred background
+        # GaussianBlur ksize must be odd. 
+        # Adjust blur strength relative to image size
+        blur_ksize = int(max(w, h) * 0.02) | 1 # Ensure odd, approx 2% of size
+        blurred_img = cv2.GaussianBlur(image, (blur_ksize, blur_ksize), 0)
         
-        # Convert mask to uint8 image
-        mask_uint8 = (mask * 255).astype(np.uint8)
-        mask_img = Image.fromarray(mask_uint8, mode='L')
+        # Composite using mask
+        # mask is 0-1 float.
+        # Subject (White in mask) -> Original Image
+        # Background (Black in mask) -> Blurred Image
         
-        # Load original for PIL
-        original_pil = Image.open(input_path).convert("RGB")
+        # Convert mask to 3 channels
+        mask_3ch = np.stack([mask]*3, axis=2)
         
-        # Blur the background
-        blurred_img = original_pil.filter(ImageFilter.GaussianBlur(radius=5))
+        # Linear interpolation: final = src1 * alpha + src2 * (1 - alpha)
+        # alpha = mask (1 where subject, 0 where bg)
+        # However, mask is 1 for subject. So:
+        # final = original * mask + blurred * (1 - mask)
         
-        # Composite
-        # paste original on top of blurred using mask
-        # Where mask is white (subject), show original. Where black (bg), show blurred.
-        # Image.composite(image1, image2, mask) -> mask white means image1, black means image2
+        # Ensure compatible types
+        mask_3ch = mask_3ch.astype(np.float32)
+        image_float = image.astype(np.float32)
+        blurred_float = blurred_img.astype(np.float32)
         
-        final_image = Image.composite(original_pil, blurred_img, mask_img)
-        
-        final_image.save(output_path, quality=95)
+        final_float = image_float * mask_3ch + blurred_float * (1.0 - mask_3ch)
+        final_image = final_float.astype(np.uint8)
+
+        # Save result
+        cv2.imwrite(output_path, final_image, [cv2.IMWRITE_JPEG_QUALITY, 95])
 
         # Generate Visualization Mask (Red semi-transparent where background is)
-        # Background is where mask_img is BLACK (0).
-        # We want Red Overlay on Background.
-        # Create a solid red image
-        red_overlay = Image.new("RGB", original_pil.size, (255, 0, 0))
-        # Create alpha channel for overlay: 
-        # We want it visible where background (mask=0). 
-        # Invert mask: 255 - mask
-        mask_np = np.array(mask_img)
-        inv_mask_np = 255 - mask_np
+        # Background is where mask is 0.
+        # We want Red everywhere, but alpha depends on backgroundness.
+        # Backgroundness = 1.0 - mask
         
-        # Make the red weak (e.g. 50% opacity -> 128) where background, 0 where subject
-        alpha_np = (inv_mask_np * 0.3).astype(np.uint8) # 30% opacity
-        alpha_img = Image.fromarray(alpha_np, mode='L')
+        # Create pure Red image (BGR: 0, 0, 255)
+        red_img = np.zeros_like(final_image)
+        red_img[:] = (0, 0, 255) 
         
-        red_overlay.putalpha(alpha_img)
+        # Alpha channel: (1.0 - mask) * 0.3 (30% opacity) * 255
+        alpha_channel = ((1.0 - mask) * 0.3 * 255).astype(np.uint8)
         
-        # Save visualization
+        # Stack BGR + Alpha -> BGRA
+        red_overlay_bgra = np.dstack([red_img, alpha_channel])
+        
+        # Save visualization (PNG preserves alpha)
         vis_filename = os.path.basename(output_path).replace("_blurred.jpg", "_mask.png")
         vis_path = os.path.join(os.path.dirname(output_path), vis_filename)
-        red_overlay.save(vis_path, format="PNG")
+        cv2.imwrite(vis_path, red_overlay_bgra)
         
         return True, vis_filename
 
