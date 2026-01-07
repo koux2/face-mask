@@ -27,6 +27,9 @@ gcloud run deploy "$SERVICE_NAME" \
     --source . \
     --region "$REGION" \
     --allow-unauthenticated \
+    --memory 1Gi \
+    --cpu 2 \
+    --cpu-boost \
     --port 8080
 
 if [ $? -eq 0 ]; then
