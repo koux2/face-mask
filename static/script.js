@@ -648,7 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
             faces.forEach(face => {
                 const cx = face.x + face.width / 2;
                 const cy = face.y + face.height / 2;
-                const size = Math.max(face.width, face.height) * 1.0;
+                const size = Math.max(face.width, face.height) * 1.2;
 
                 const cssSize = size * scaleX;
                 const cssCx = cx * scaleX;
@@ -807,7 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const dy = e.clientY - startY;
             const type = activeElement.dataset.type || 'emoji';
 
-            if (type === 'emoji') {
+            if (type.startsWith('emoji')) {
                 // Fixed Aspect Ratio
                 // Use the larger delta to determine size change
                 // or just use dx for simplicity if usually dragging corner
@@ -894,7 +894,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const dy = touch.clientY - startY;
             const type = activeElement.dataset.type || 'emoji';
 
-            if (type === 'emoji') {
+            if (type.startsWith('emoji')) {
                 const d = Math.max(dx, dy);
                 const newSize = Math.max(20, startWidth + d);
                 activeElement.style.width = `${newSize}px`;
@@ -933,7 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const w = targetImage.clientWidth;
         const h = targetImage.clientHeight;
-        createMask(w / 2 - 50, h / 2 - 50, 100, creationType);
+        createMask(w / 2 - 60, h / 2 - 60, 120, creationType);
     });
 
 
