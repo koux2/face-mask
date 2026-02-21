@@ -516,18 +516,20 @@ document.addEventListener('DOMContentLoaded', () => {
             file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
         if (isHeic) {
             try {
-                const convertedBlob = await heic2any({
+                const result = await heic2any({
                     blob: file,
                     toType: 'image/jpeg',
                     quality: 0.92
                 });
+                // heic2any は複数フレームのHEICで配列を返すことがある
+                const convertedBlob = Array.isArray(result) ? result[0] : result;
                 const baseName = file.name.replace(/\.(heic|heif)$/i, '');
                 file = new File([convertedBlob], baseName + '.jpg', { type: 'image/jpeg' });
                 // ダウンロード時のファイル名も更新
                 currentOriginalName = baseName + '_masked.jpg';
             } catch (e) {
                 console.error('HEIC変換エラー:', e);
-                alert('HEICファイルの変換に失敗しました。');
+                alert('HEICファイルの変換に失敗しました。\n別の形式（JPEG/PNG）に変換してから試してください。');
                 return;
             }
         }
