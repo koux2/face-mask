@@ -511,6 +511,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function processFile(file) {
+        // HEICファイルはブラウザが表示できないのでJPEGに変換する
+        const isHeic = file.type === 'image/heic' || file.type === 'image/heif' ||
+            file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+        if (isHeic) {
+            try {
+                const convertedBlob = await heic2any({
+                    blob: file,
+                    toType: 'image/jpeg',
+                    quality: 0.92
+                });
+                const baseName = file.name.replace(/\.(heic|heif)$/i, '');
+                file = new File([convertedBlob], baseName + '.jpg', { type: 'image/jpeg' });
+                // ダウンロード時のファイル名も更新
+                currentOriginalName = baseName + '_masked.jpg';
+            } catch (e) {
+                console.error('HEIC変換エラー:', e);
+                alert('HEICファイルの変換に失敗しました。');
+                return;
+            }
+        }
+
         // Show local preview immediately
         const previewUrl = URL.createObjectURL(file);
         currentImageUrl = previewUrl;
@@ -1002,55 +1023,85 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     downloadBtn.addEventListener('click', async () => {
+        const originalText = downloadBtn.innerHTML;
         try {
             const success = await composeImage();
             if (!success) return;
 
-            // Wait a small tick to ensure browser ready
-            setTimeout(() => {
-                const link = document.createElement('a');
-                link.download = currentOriginalName;
-                link.href = exportCanvas.toDataURL('image/jpeg', 0.95);
-                link.click();
+            const isIOS = /iP(hone|ad|od)/i.test(navigator.userAgent);
 
-                // Feedback
-                const originalText = downloadBtn.innerHTML;
-                downloadBtn.innerHTML = '<span class="icon">✅</span> 保存しました';
-                setTimeout(() => {
-                    downloadBtn.innerHTML = originalText;
-                }, 2000);
-            }, 100);
+            if (isIOS) {
+                // iOS Safari は <a download> が動作しないため、新しいタブで開いて長押し保存
+                exportCanvas.toBlob((blob) => {
+                    const blobUrl = URL.createObjectURL(blob);
+                    window.open(blobUrl, '_blank');
+                    downloadBtn.innerHTML = '<span class="icon">✅</span> 長押しで保存';
+                    setTimeout(() => {
+                        downloadBtn.innerHTML = originalText;
+                        URL.revokeObjectURL(blobUrl);
+                    }, 3000);
+                }, 'image/jpeg', 0.95);
+            } else {
+                // PC / Android: <a download> で保存
+                exportCanvas.toBlob((blob) => {
+                    const blobUrl = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.download = currentOriginalName;
+                    link.href = blobUrl;
+                    link.click();
+                    URL.revokeObjectURL(blobUrl);
+                    downloadBtn.innerHTML = '<span class="icon">✅</span> 保存しました';
+                    setTimeout(() => { downloadBtn.innerHTML = originalText; }, 2000);
+                }, 'image/jpeg', 0.95);
+            }
         } catch (e) {
             alert('保存エラー: ' + e.message);
         }
     });
 
     copyBtn.addEventListener('click', async () => {
+        const originalText = copyBtn.innerHTML;
         try {
             const success = await composeImage();
             if (!success) return;
+
+            const isIOS = /iP(hone|ad|od)/i.test(navigator.userAgent);
 
             exportCanvas.toBlob(async (blob) => {
                 if (!blob) {
                     alert('画像データの生成に失敗しました');
                     return;
                 }
-                try {
-                    await navigator.clipboard.write([
-                        new ClipboardItem({
-                            [blob.type]: blob
-                        })
-                    ]);
 
-                    // Feedback
-                    const originalText = copyBtn.innerHTML;
-                    copyBtn.innerHTML = '<span class="icon">✅</span> コピーしました';
+                if (isIOS) {
+                    // iOS Safari は clipboard.write 非対応なので新しいタブで開く
+                    const blobUrl = URL.createObjectURL(blob);
+                    window.open(blobUrl, '_blank');
+                    copyBtn.innerHTML = '<span class="icon">✅</span> 長押しでコピー';
                     setTimeout(() => {
                         copyBtn.innerHTML = originalText;
-                    }, 2000);
+                        URL.revokeObjectURL(blobUrl);
+                    }, 3000);
+                    return;
+                }
+
+                // PC / Android: Clipboard API
+                try {
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ 'image/png': blob })
+                    ]);
+                    copyBtn.innerHTML = '<span class="icon">✅</span> コピーしました';
+                    setTimeout(() => { copyBtn.innerHTML = originalText; }, 2000);
                 } catch (err) {
                     console.error(err);
-                    alert('コピーに失敗しました: ' + err.message);
+                    // フォールバック: 新しいタブで開く
+                    const blobUrl = URL.createObjectURL(blob);
+                    window.open(blobUrl, '_blank');
+                    copyBtn.innerHTML = '<span class="icon">✅</span> 画像を開きました';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = originalText;
+                        URL.revokeObjectURL(blobUrl);
+                    }, 3000);
                 }
             }, 'image/png');
         } catch (e) {
