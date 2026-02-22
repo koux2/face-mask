@@ -2,8 +2,12 @@ import sys
 import os
 import cv2
 import numpy as np
-import os
 from PIL import Image
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass  # pillow-heif not installed, HEIC files will fall back to cv2
 
 
 # Global model cache
@@ -26,8 +30,17 @@ def detect_faces(input_path, model_path=None):
     
     net = _net
 
-    # Load image
-    image = cv2.imread(input_path)
+    # Load image (HEIC/HEIF files are handled via pillow-heif + Pillow)
+    input_lower = input_path.lower()
+    if input_lower.endswith('.heic') or input_lower.endswith('.heif'):
+        pil_img = Image.open(input_path).convert('RGB')
+        image = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+    else:
+        image = cv2.imread(input_path)
+
+    if image is None:
+        raise ValueError(f"画像を読み込めませんでした: {input_path}")
+
     (h, w) = image.shape[:2]
 
     # Preprocess image: resize to 600x600 for the model (Increased from 300x300 to detect small faces)

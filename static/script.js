@@ -514,6 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // HEICファイルはブラウザが表示できないのでJPEGに変換する
         const isHeic = file.type === 'image/heic' || file.type === 'image/heif' ||
             file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+        let heicFallback = false; // ブラウザ変換失敗フラグ
         if (isHeic) {
             try {
                 const result = await heic2any({
@@ -528,8 +529,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 // ダウンロード時のファイル名も更新
                 currentOriginalName = baseName + '_masked.jpg';
             } catch (e) {
-                console.error('HEIC変換エラー:', e);
-                alert('HEICファイルの変換に失敗しました。\n別の形式（JPEG/PNG）に変換してから試してください。');
+                console.warn('HEIC変換エラー (フォールバック: サーバー側で処理します):', e);
+                // ブラウザ変換失敗 → HEICのままサーバーに送る（pillow-heif対応済み）
+                heicFallback = true;
+            }
+        }
+
+        if (heicFallback) {
+            // ブラウザ変換失敗 → サーバーの/convertでHEIC→JPEGに変換してからフル処理
+            try {
+                const convertForm = new FormData();
+                convertForm.append('image', file, file.name);
+                const convertRes = await fetch('/convert', { method: 'POST', body: convertForm });
+                if (!convertRes.ok) {
+                    alert('HEICファイルの処理に失敗しました。');
+                    return;
+                }
+                const jpegBlob = await convertRes.blob();
+                const baseName = file.name.replace(/\.(heic|heif)$/i, '');
+                file = new File([jpegBlob], baseName + '.jpg', { type: 'image/jpeg' });
+                currentOriginalName = baseName + '_masked.jpg';
+                // 変換成功 → フォールバック解除して通常フローへ
+            } catch (err) {
+                console.error('サーバー変換エラー:', err);
+                alert('HEICファイルの処理に失敗しました。');
                 return;
             }
         }

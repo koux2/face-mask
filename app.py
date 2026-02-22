@@ -50,6 +50,39 @@ def detect():
             os.remove(filepath)
         return jsonify({'error': str(e)}), 500
 
+@app.route('/convert', methods=['POST'])
+def convert():
+    """HEICなどをJPEGに変換して返すエンドポイント"""
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image uploaded'}), 400
+
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    filename = str(uuid.uuid4()) + os.path.splitext(file.filename)[1]
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    output_filename = str(uuid.uuid4()) + '.jpg'
+    output_filepath = os.path.join(UPLOAD_FOLDER, output_filename)
+    file.save(filepath)
+
+    try:
+        from PIL import Image as PILImage
+        try:
+            from pillow_heif import register_heif_opener
+            register_heif_opener()
+        except ImportError:
+            pass
+        img = PILImage.open(filepath).convert('RGB')
+        img.save(output_filepath, 'JPEG', quality=92)
+        return send_file(output_filepath, mimetype='image/jpeg')
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        # output_filepathはsend_file後にすぐ消せないケースもあるため残す
+
 @app.route('/blur', methods=['POST'])
 def blur():
     if 'image' not in request.files:
